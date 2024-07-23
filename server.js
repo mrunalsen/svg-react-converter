@@ -5,7 +5,8 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const port = 1000;
+const port = '54.254.162.138'
+    ;
 
 // Fetch SVGs from provided API
 const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
