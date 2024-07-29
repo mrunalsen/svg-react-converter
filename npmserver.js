@@ -5,13 +5,12 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const port = 1000;
-;
+const port = process.env.PORT || 1000;
 
 // Fetch SVGs from provided API
 const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
-    console.log(projectId, page, perPage, sort);
-    const response = await axios.post(` http://172.16.0.5:8088/api/project/${projectId}/icons`, {
+    console.log(`Fetching SVGs for project ${projectId} with page: ${page}, perPage: ${perPage}, sort: ${sort}`);
+    const response = await axios.post(`http://172.16.0.5:8088/api/project/${projectId}/icons`, {
         params: { page, perPage, sort }
     });
 
@@ -21,7 +20,7 @@ const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
 
     for (const icon of icons) {
         for (const iconImage of icon.iconImages) {
-            const svgResponse = await axios.get(` http://172.16.0.5:8088/${iconImage.iconImagePath}`, {
+            const svgResponse = await axios.get(`http://172.16.0.5:8088/${iconImage.iconImagePath}`, {
                 responseType: 'text'
             });
             svgFiles[iconImage.imageName] = svgResponse.data;
@@ -111,8 +110,8 @@ const convertSVGsToComponents = async (svgFiles) => {
     return { jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles };
 };
 
-// Create npm package
-const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles }) => {
+// Create npm package and publish to npm
+const createAndPublishNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles }) => {
     const packageDir = path.join(__dirname, projectName);
     const distJsxDir = path.join(packageDir, 'dist', 'jsx');
     const distTsxDir = path.join(packageDir, 'dist', 'tsx');
@@ -139,7 +138,8 @@ const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, ind
 
     // Create package.json
     const packageJsonContent = {
-        name: projectName.toLowerCase(),
+        // name: projectName.toLowerCase() + "-" + Date.now(),
+        name: 'fortestingpurposeonly',
         version: "1.0.0",
         main: "dist/jsx/index.js",
         types: "dist/tsx/index.d.ts",
@@ -150,19 +150,22 @@ const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, ind
         },
         devDependencies: {}
     };
-    fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify(packageJsonContent, null, 2));
+    try {
+        // Configure npm to use the token
+        fs.writeFileSync(path.join(packageDir, '.npmrc'), `//registry.npmjs.org/:_authToken=${process.env.NPM_TOKEN}`);
 
-    // Create .tgz package using npm pack
-    execSync(`npm pack ${packageDir}`);
+        execSync(`npm publish ${packageDir} --access public`);
 
-    // Clean up
-    fs.rmdirSync(packageDir, { recursive: true });
-
-    return `${projectName}-1.0.0.tgz`;
+        // Clean up
+        fs.rmdirSync(packageDir, { recursive: true });
+    } catch (error) {
+        console.error('Failed to publish package:', error);
+    }
 };
 
-// Endpoint to handle SVG to React component conversion and tar creation
-app.get('/download', async (req, res) => {
+
+// Endpoint to handle SVG to React component conversion and npm publishing
+app.get('/publish', async (req, res) => {
     try {
         const projectId = req.query.projectId;
         const projectName = req.query.projectName || 'project';
@@ -170,10 +173,12 @@ app.get('/download', async (req, res) => {
         const perPage = req.query.perPage || 10;
         const sort = req.query.sort || '-iconId';
 
+        console.log(`Received request to publish project: ${projectName} with ID: ${projectId}`);
+
         const svgFiles = await fetchSVGsForProject(projectId, page, perPage, sort);
         const { jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles } = await convertSVGsToComponents(svgFiles);
 
-        const packagePath = await createNpmPackage({
+        await createAndPublishNpmPackage({
             projectName,
             jsxComponents,
             tsxComponents,
@@ -182,9 +187,7 @@ app.get('/download', async (req, res) => {
             declarationFiles,
         });
 
-        res.download(path.join(__dirname, packagePath), packagePath, () => {
-            fs.unlinkSync(path.join(__dirname, packagePath));
-        });
+        res.status(200).send('Package published to npm successfully');
     } catch (error) {
         console.error('Error:', error);
         res.status(500).send('Internal Server Error');

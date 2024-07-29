@@ -5,20 +5,25 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "server": "node server.js"
+    "server": "node server.js",
+    "publish": "node npmserver.js"
   },
   "keywords": [],
   "author": "Mrunal Patel",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.2",
+    "child_process": "^1.0.2",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-fileupload": "^1.5.0",
     "file-saver": "^2.0.5",
+    "fs": "^0.0.1-security",
     "jimp": "^0.22.12",
     "jszip": "^3.10.1",
     "multer": "^1.4.5-lts.1",
     "node-fetch": "^2.6.1",
+    "path": "^0.12.7",
     "potrace": "^2.1.8",
     "tar": "^7.4.0",
     "uuid": "^10.0.0"
