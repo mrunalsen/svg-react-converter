@@ -1,13 +1,22 @@
 const express = require('express');
+const cors = require('cors');
 const axios = require('axios');
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { ConnectionFactory, AuthHandler } = '@azure/devops-client';
+const { WebApiBase } = '@azure/devops-extension-api';
+const { PublishPackageApi } = '@azure/devops-artifacts-common';
+const { execSync } = require('child_process');
 
 const app = express();
 const port = process.env.PORT || 1000;
+app.use(cors());
 
-// Fetch SVGs from provided API
+const organizationUrl = 'https://dev.azure.com/1RivetUSInc/';
+const projectName = '1Rivet_Artifactory';
+const feedName = 'NPM';
+const accessToken = 'ajZhejJ1cXRmZzJkaXViN2dpaXB5eXRxYndxYng1bmJ2am9rZGp6MndpandmcGcycjJtYQ==';
+
 const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
     console.log(`Fetching SVGs for project ${projectId} with page: ${page}, perPage: ${perPage}, sort: ${sort}`);
     const response = await axios.post(`http://172.16.0.5:8088/api/project/${projectId}/icons`, {
@@ -30,7 +39,6 @@ const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
     return svgFiles;
 };
 
-// Convert SVGs to React components
 const convertSVGsToComponents = async (svgFiles) => {
     const jsxComponents = [];
     const tsxComponents = [];
@@ -109,36 +117,35 @@ const convertSVGsToComponents = async (svgFiles) => {
 
     return { jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles };
 };
-
-// Create npm package and publish to npm
-const createAndPublishNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles }) => {
+const createAndPublishAzurePackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles, accessToken }) => {
     const packageDir = path.join(__dirname, projectName);
     const distJsxDir = path.join(packageDir, 'dist', 'jsx');
     const distTsxDir = path.join(packageDir, 'dist', 'tsx');
 
-    // Create directories
+    // Create necessary directories
+    fs.mkdirSync(packageDir, { recursive: true });
     fs.mkdirSync(distJsxDir, { recursive: true });
     fs.mkdirSync(distTsxDir, { recursive: true });
 
-    // Write JSX and TSX components
+    // Write JSX components to dist/jsx
     jsxComponents.forEach(({ fileName, content }) => {
         fs.writeFileSync(path.join(distJsxDir, fileName), content);
     });
     fs.writeFileSync(path.join(distJsxDir, 'index.js'), indexJsExports.join('\n'));
 
+    // Write TSX components to dist/tsx
     tsxComponents.forEach(({ fileName, content }) => {
         fs.writeFileSync(path.join(distTsxDir, fileName), content);
     });
     fs.writeFileSync(path.join(distTsxDir, 'index.ts'), indexTsExports.join('\n'));
 
-    // Write TypeScript declaration files
+    // Write declaration files to dist/tsx
     declarationFiles.forEach(({ fileName, content }) => {
         fs.writeFileSync(path.join(distTsxDir, fileName), content);
     });
 
     // Create package.json
     const packageJsonContent = {
-        // name: projectName.toLowerCase() + "-" + Date.now(),
         name: 'fortestingpurposeonly',
         version: "1.0.0",
         main: "dist/jsx/index.js",
@@ -152,41 +159,58 @@ const createAndPublishNpmPackage = async ({ projectName, jsxComponents, tsxCompo
     };
     fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify(packageJsonContent, null, 2));
 
-    // Publish package to npm
-    execSync(`npm publish ${packageDir} --access public`);
+    const tarballName = `${projectName.toLowerCase()}-${Date.now()}.tgz`;
+    const tarballPath = path.join(packageDir, tarballName);
 
-    // Clean up
-    fs.rmdirSync(packageDir, { recursive: true });
+    execSync(`cd ${packageDir} && npm pack`);
+
+    const authHandler = new AuthHandler(accessToken, 'token');
+    const connection = await ConnectionFactory.estabilish(organizationUrl, authHandler);
+
+    const publishApi = new PublishPackageApi(connection);
+
+    try {
+        const uploadResult = await publishApi.publishPackageToFeed(
+            projectName,
+            feedName,
+            fs.createReadStream(tarballPath),
+            projectName
+        );
+
+        console.log('Package uploaded successfully:', uploadResult);
+    } catch (error) {
+        console.error('Error uploading package:', error);
+    } finally {
+        fs.unlinkSync(tarballPath);
+        fs.rmdirSync(packageDir, { recursive: true });
+    }
 };
 
-
-// Endpoint to handle SVG to React component conversion and npm publishing
-app.get('/publish', async (req, res) => {
+app.post('/publish', async (req, res) => {
     try {
-        const projectId = req.query.projectId;
-        const projectName = req.query.projectName || 'project';
-        const page = req.query.page || 0;
-        const perPage = req.query.perPage || 10;
-        const sort = req.query.sort || '-iconId';
-
-        console.log(`Received request to publish project: ${projectName} with ID: ${projectId}`);
-
+        // const { projectId, projectName, page, perPage, sort } = req.body;
+        const projectId = 72;
+        const projectName = 'arielinvestment';
+        const page = 100;
+        const perPage = 100;
+        const sort = "-iconId";
         const svgFiles = await fetchSVGsForProject(projectId, page, perPage, sort);
         const { jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles } = await convertSVGsToComponents(svgFiles);
 
-        await createAndPublishNpmPackage({
+        await createAndPublishAzurePackage({
             projectName,
             jsxComponents,
             tsxComponents,
             indexJsExports,
             indexTsExports,
             declarationFiles,
+            accessToken
         });
 
-        res.status(200).send('Package published to npm successfully');
+        res.status(200).json({ message: 'Package published to Azure Artifacts successfully' });
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).send('Internal Server Error');
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
