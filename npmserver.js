@@ -3,8 +3,11 @@ const axios = require('axios');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
+
+app.use(cors());
 const port = process.env.PORT || 1000;
 
 // Fetch SVGs from provided API

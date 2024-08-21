@@ -47,12 +47,18 @@ const convertSVGsToComponents = async (svgFiles) => {
     const indexJsExports = [];
     const indexTsExports = [];
     const declarationFiles = [];
-
     const toPascalCase = (str) => {
         return str
-            .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
-            .replace(/^./, (c) => c.toUpperCase());
+            .split(/[\s_-]+/)   // Split by spaces, hyphens, or underscores
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))  // Capitalize the first letter of each word
+            .join('');  // Join the words together without spaces
     };
+
+    // const toPascalCase = (str) => {
+    //     return str
+    //         .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
+    //         .replace(/^./, (c) => c.toUpperCase());
+    // };
 
     for (const fileName in svgFiles) {
         const svg = svgFiles[fileName];
@@ -110,9 +116,9 @@ const convertSVGsToComponents = async (svgFiles) => {
       export default ${baseFileName};
     `;
 
-        jsxComponents.push({ fileName: `${fileName.replace('.svg', '')}.jsx`, content: jsxComponent });
-        tsxComponents.push({ fileName: `${fileName.replace('.svg', '')}.tsx`, content: tsxComponent });
-        declarationFiles.push({ fileName: `${fileName.replace('.svg', '')}.d.ts`, content: declarationFile });
+        jsxComponents.push({ fileName: `${baseFileName.replace('.svg', '')}.jsx`, content: jsxComponent });
+        tsxComponents.push({ fileName: `${baseFileName.replace('.svg', '')}.tsx`, content: tsxComponent });
+        declarationFiles.push({ fileName: `${baseFileName.replace('.svg', '')}.d.ts`, content: declarationFile });
         indexJsExports.push(`export { default as ${baseFileName} } from "./${baseFileName}";`);
         indexTsExports.push(`export { default as ${baseFileName} } from "./${baseFileName}";`);
     }

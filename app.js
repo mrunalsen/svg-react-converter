@@ -4,8 +4,10 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
 const port = process.env.PORT || 1000;
 
 const rootDir = path.resolve(__dirname, '..');
