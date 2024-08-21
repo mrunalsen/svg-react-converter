@@ -4,9 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "server": "node server.js",
-    "publish": "node npmserver.js"
+    "build": "webpack",
+    "start": "node dist/bundle.js"
   },
   "keywords": [],
   "author": "Mrunal Patel",
@@ -28,6 +27,8 @@
     "path": "^0.12.7",
     "potrace": "^2.1.8",
     "tar": "^7.4.0",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "webpack": "^5.93.0",
+    "webpack-cli": "^5.1.4"
   }
 }
