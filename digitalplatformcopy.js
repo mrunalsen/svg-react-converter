@@ -29,11 +29,18 @@ const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
     const svgFiles = {};
 
     for (const icon of icons) {
+        const iconName = icon.iconName;
         for (const iconImage of icon.iconImages) {
             const svgResponse = await axios.get(` http://172.16.0.5:8088/${iconImage.iconImagePath}`, {
                 responseType: 'text'
             });
-            svgFiles[iconImage.imageName] = svgResponse.data;
+            // svgFiles[iconImage.imageName] = svgResponse.data;
+            if (!svgFiles[iconName]) {
+                svgFiles[iconName] = [];
+            }
+
+            // Add the SVG content to the array associated with the iconName
+            svgFiles[iconName].push(svgResponse.data);
         }
     }
 
@@ -60,11 +67,12 @@ const convertSVGsToComponents = async (svgFiles) => {
     //         .replace(/^./, (c) => c.toUpperCase());
     // };
 
-    for (const fileName in svgFiles) {
-        const svg = svgFiles[fileName];
-        const baseFileName = toPascalCase(fileName.replace('.svg', ''));
-
-        const cleanedSVG = svg.replace(/<svg[^>]*>/, (match) => {
+    for (const iconName in svgFiles) {
+        // const svg = svgFiles[fileName];
+        // const baseFileName = toPascalCase(fileName.replace('.svg', ''));
+        const svgArray = svgFiles[iconName];
+        const baseFileName = toPascalCase(iconName);
+        const cleanedSVG = svgArray.map(svg => svg.replace(/<svg[^>]*>/, (match) => {
             return match
                 .replace(/\sid="[^"]*"/, '')
                 .replace(/\sheight="[^"]*"/, '')
@@ -72,7 +80,7 @@ const convertSVGsToComponents = async (svgFiles) => {
                 .replace(/\sviewBox="[^"]*"/, ' viewBox="0 0 512 512"')
                 .replace(/\senable-background="[^"]*"/, '')
                 .replace(/\scolor="[^"]*"/, ' color="black"');
-        });
+        })).join('\n');
 
         const jsxComponent = `
       import React from 'react';
@@ -169,9 +177,13 @@ const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, ind
     // Change to uploads directory for npm pack
     const originalDir = process.cwd();
     process.chdir(uploadsDir);
-
+    const tarballName = `${projectName.toLowerCase()}.tgz`;
     // Create .tgz package using npm pack
     execSync(`npm pack ${packageDir}`);
+
+    // Rename the tarball to ensure it's lowercase
+    const generatedTarball = fs.readdirSync(uploadsDir).find(file => file.endsWith('.tgz'));
+    fs.renameSync(path.join(uploadsDir, generatedTarball), path.join(uploadsDir, tarballName));
 
     // Change back to the original directory
     process.chdir(originalDir);
@@ -179,7 +191,7 @@ const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, ind
     // Clean up
     fs.rmdirSync(packageDir, { recursive: true });
 
-    return path.join(uploadsDir, `${projectName}-1.0.0.tgz`);
+    return path.join(uploadsDir, tarballName);
 };
 
 // Endpoint to handle SVG to React component conversion and tar creation
