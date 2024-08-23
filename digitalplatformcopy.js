@@ -17,6 +17,7 @@ const uploadsDir = path.join(rootDir, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
 // Fetch SVGs from provided API
 const fetchSVGsForProject = async (projectId, page, perPage, sort) => {
     console.log(projectId, page, perPage, sort);
@@ -77,7 +78,7 @@ const convertSVGsToComponents = async (svgFiles) => {
                 .replace(/\sid="[^"]*"/, '')
                 .replace(/\sheight="[^"]*"/, '')
                 .replace(/\swidth="[^"]*"/, '')
-                .replace(/\sviewBox="[^"]*"/, ' viewBox="0 0 512 512"')
+                .replace(/\sviewBox="[^"]*"/, ' viewBox="0 0 26 26"')
                 .replace(/\senable-background="[^"]*"/, '')
                 .replace(/\scolor="[^"]*"/, ' color="black"');
         })).join('\n');
@@ -134,8 +135,18 @@ const convertSVGsToComponents = async (svgFiles) => {
     return { jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles };
 };
 
-const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles }) => {
-    const packageDir = path.join(uploadsDir, projectName);
+const toValidPackageName = (str) => {
+    return str
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/^-+|-+$/g, '');
+};
+
+
+const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles, packageVersion }) => {
+    const validPackageName = toValidPackageName(projectName);
+    const packageDir = path.join(uploadsDir, validPackageName);
     const distJsxDir = path.join(packageDir, 'dist', 'jsx');
     const distTsxDir = path.join(packageDir, 'dist', 'tsx');
 
@@ -161,8 +172,8 @@ const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, ind
 
     // Create package.json
     const packageJsonContent = {
-        name: projectName.toLowerCase(),
-        version: "1.0.0",
+        name: validPackageName,
+        version: packageVersion || "1.0.0",
         main: "dist/jsx/index.js",
         types: "dist/tsx/index.d.ts",
         author: "Mrunal Patel",
@@ -177,7 +188,7 @@ const createNpmPackage = async ({ projectName, jsxComponents, tsxComponents, ind
     // Change to uploads directory for npm pack
     const originalDir = process.cwd();
     process.chdir(uploadsDir);
-    const tarballName = `${projectName.toLowerCase()}.tgz`;
+    const tarballName = `${validPackageName}.tgz`;
     // Create .tgz package using npm pack
     execSync(`npm pack ${packageDir}`);
 
@@ -202,6 +213,7 @@ app.get('/download', async (req, res) => {
         const page = req.query.page || 0;
         const perPage = req.query.perPage || 10;
         const sort = req.query.sort || '-iconId';
+        const packageVersion = req.query.packageVersion || '1.0.0';
 
         const svgFiles = await fetchSVGsForProject(projectId, page, perPage, sort);
         const { jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles } = await convertSVGsToComponents(svgFiles);
@@ -213,6 +225,7 @@ app.get('/download', async (req, res) => {
             indexJsExports,
             indexTsExports,
             declarationFiles,
+            packageVersion
         });
 
         res.download(packagePath, path.basename(packagePath), () => {

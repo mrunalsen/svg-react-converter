@@ -47,22 +47,15 @@ const convertSVGsToComponents = async (svgFiles) => {
     const indexTsExports = [];
     const declarationFiles = [];
 
-    // const toPascalCase = (str) => {
-    //     return str
-    //         .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
-    //         .replace(/^./, (c) => c.toUpperCase());
-    // };
     const toPascalCase = (str) => {
         return str
-            .split(/[\s_-]+/)   // Split by spaces, hyphens, or underscores
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))  // Capitalize the first letter of each word
-            .join('');  // Join the words together without spaces
+            .split(/[\s_-]+/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join('');
     };
 
 
     for (const iconName in svgFiles) {
-        // const svg = svgFiles[fileName];
-        // const baseFileName = toPascalCase(fileName.replace('.svg', ''));
         const svgArray = svgFiles[iconName];
         const baseFileName = toPascalCase(iconName);
         const cleanedSVG = svgArray.map(svg => svg.replace(/<svg[^>]*>/, (match) => {
@@ -70,7 +63,7 @@ const convertSVGsToComponents = async (svgFiles) => {
                 .replace(/\sid="[^"]*"/, '')
                 .replace(/\sheight="[^"]*"/, '')
                 .replace(/\swidth="[^"]*"/, '')
-                .replace(/\sviewBox="[^"]*"/, ' viewBox="0 0 512 512"')
+                .replace(/\sviewBox="[^"]*"/, ' viewBox="0 0 26 26"')
                 .replace(/\senable-background="[^"]*"/, '')
                 .replace(/\scolor="[^"]*"/, ' color="black"');
         })).join('\n');
@@ -128,7 +121,7 @@ const convertSVGsToComponents = async (svgFiles) => {
 };
 
 // Create npm package and publish to npm
-const createAndPublishNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles }) => {
+const createAndPublishNpmPackage = async ({ projectName, jsxComponents, tsxComponents, indexJsExports, indexTsExports, declarationFiles, packageVersion }) => {
     const packageDir = path.join(__dirname, projectName);
     const distJsxDir = path.join(packageDir, 'dist', 'jsx');
     const distTsxDir = path.join(packageDir, 'dist', 'tsx');
@@ -158,7 +151,7 @@ const createAndPublishNpmPackage = async ({ projectName, jsxComponents, tsxCompo
         name: projectName.toLowerCase(),
         // name: projectName.toLowerCase() + "-" + Date.now(),
         // name: 'fortestingpurposeonly',
-        version: "1.0.0",
+        version: packageVersion || "1.0.2",
         main: "dist/jsx/index.js",
         types: "dist/tsx/index.d.ts",
         author: "Mrunal Patel",
@@ -186,6 +179,7 @@ app.get('/publish', async (req, res) => {
         const page = req.query.page || 0;
         const perPage = req.query.perPage || 10;
         const sort = req.query.sort || '-iconId';
+        const packageVersion = req.query.packageVersion || '1.0.0';
 
         console.log(`Received request to publish project: ${projectName} with ID: ${projectId}`);
 
@@ -199,6 +193,7 @@ app.get('/publish', async (req, res) => {
             indexJsExports,
             indexTsExports,
             declarationFiles,
+            packageVersion
         });
 
         res.status(200).send('Package published to npm successfully');
